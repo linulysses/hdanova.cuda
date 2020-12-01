@@ -325,6 +325,10 @@ void pvalue(const NumericMatrix& vX,
         
         for (int k = 0; k < m; k++)
         {
+        
+            zl = std::numeric_limits<double>::max();
+            zu = std::numeric_limits<double>::min();
+            
             for (int s = 0; s < Q; s++)
             {
                 
@@ -338,11 +342,6 @@ void pvalue(const NumericMatrix& vX,
                 double lamg = sqrt(ng / (ng + nh));
                 double lamh = sqrt(nh / (ng + nh));
                 
-                //printf("g=%d, h=%d, ng=%f, nh=%f, Q=%d\n",g,h,ng,nh,Q);
-
-                zl = std::numeric_limits<double>::max();
-                zu = std::numeric_limits<double>::min();
-
                 
                 // compute zl and zu corresponding to the R version
                 for (int j = 0; j < p; j++)

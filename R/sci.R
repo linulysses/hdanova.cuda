@@ -125,7 +125,7 @@ hdanova <- function(X,alpha,side,tau,B,pairs,Sig,verbose,tau.method,R,nblock,tpb
                        'lower'=-1,
                        'upper'=1)
     
-    S <- anova_cuda(cudaX,c(ns),sigma,mu,tau,pairs,side,B,alpha,method,R,nblock,tpb,seed=seed) 
+    S <- anova_cuda(cudaX,c(ns),sigma,mu,tau,pairs,side,B,alpha,method,R,nblock,tpb,seed) 
     
     if(is.null(S)){
         message('Some error occurs in GPU computation. NULL will be returned')

@@ -70,4 +70,16 @@ test_that("check routines in hdanova.R", {
     expect_true(res$pvalue > alpha)
     expect_true('sci' %in% names(res))
     
+    set.seed(41343)
+    G <- 3
+    p <- 10
+    alpha <- 0.05
+    n <- rep(30,G)
+    mu <- lapply(1:G,function(g) 0.45*g*(1:p)^(-2))
+    Sig <- lapply(1:G,function(g) diag((1:p)^(-0.5*g)))
+    X <- lapply(1:G,function(g) MASS::mvrnorm(n[g],mu[[g]],Sig[[g]]))
+    res <- hdtest(X,alpha,side='==')
+    expect_true(res$reject)
+    expect_true(res$pvalue < alpha)
+    
 })
