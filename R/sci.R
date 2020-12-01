@@ -72,9 +72,7 @@ hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NU
     return(res)
 }
 
-hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NULL,
-                    Sig=NULL,verbose=F,tau.method='MGB',R=ceiling(25/alpha),
-                    nblock=32,tpb=64,seed=sample.int(2^30,1))
+hdanova <- function(X,alpha,side,tau,B,pairs,Sig,verbose,tau.method,R,nblock,tpb,seed)
 {
     if(is.null(tau)) tau=1/(1+exp(-0.8*seq(-6,5,by=1)))
     
