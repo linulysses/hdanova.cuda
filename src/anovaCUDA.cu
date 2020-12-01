@@ -240,6 +240,7 @@ void pvalue(const NumericMatrix& vX,
     const NumericMatrix& vmu,
     const NumericVector& vtau,
     int* pairs,
+    int side,
     int Q,
     int B,
     double* Mn, double* Ln, double* pval)
@@ -297,8 +298,21 @@ void pvalue(const NumericMatrix& vX,
             /* DEBUG
             printf("eta1=%f, eta2=%f, eta=%f\n",eta1,eta2,eta);
             */
-
-            pval[k] = 2 * eta < 1 ? 2 * eta : 1;
+            
+            if(side == 0)
+                pval[k] = 2 * eta < 1 ? 2 * eta : 1;
+            else if(side == -1)
+                pval[k] = eta1;
+            else
+                pval[k] = eta2;
+                
+            //eta.lower <- mean(Mn.sorted[[v]] >= zu)
+            //eta.upper <- mean(Ln.sorted[[v]] <= zl)
+            //eta.both <- min(1,2*min(eta.lower,eta.upper))
+            
+            //switch(side,'both' = eta.both,
+            //       'lower' = eta.lower,
+            //       'upper' = eta.upper)
 
         }
     }
@@ -373,8 +387,14 @@ void pvalue(const NumericMatrix& vX,
             // DEBUG
             //printf("eta1=%f, eta2=%f, eta=%f\n",eta1,eta2,eta);
 
+            if(side == 0)
+                pval[k] = 2 * eta < 1 ? 2 * eta : 1;
+            else if(side == -1)
+                pval[k] = eta1;
+            else
+                pval[k] = eta2;
 
-            pval[k] = 2 * eta < 1 ? 2 * eta : 1;
+            //pval[k] = 2 * eta < 1 ? 2 * eta : 1;
         }
         
     }
@@ -382,7 +402,8 @@ void pvalue(const NumericMatrix& vX,
 
 // see size_tau_kernel for the description of arguments
 __device__
-void pvalue_dev(double* X, double* z, int G, int p, int* N, int* pairs, double* sigma,
+void pvalue_dev(double* X, double* z, int G, int p, int* N, 
+    int* pairs, int side, double* sigma,
     double* tau, int m, int B,
     double* Mn, double* Ln, int r,
     double* pval, double* mu, int* Xstar)
@@ -441,7 +462,14 @@ void pvalue_dev(double* X, double* z, int G, int p, int* N, int* pairs, double* 
             eta2 = eta2 / B;
             eta = eta1 < eta2 ? eta1 : eta2;
 
-            pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+            //pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+            
+            if(side == 0)
+                pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+            else if(side == -1)
+                pval[k + r * m] = eta1;
+            else
+                pval[k + r * m] = eta2;
 
         }
 
@@ -533,7 +561,14 @@ void pvalue_dev(double* X, double* z, int G, int p, int* N, int* pairs, double* 
                 eta2 = eta2 / B;
                 eta = eta1 < eta2 ? eta1 : eta2;
 
-                pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+                //pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+                
+                if(side == 0)
+                    pval[k + r * m] = 2 * eta < 1 ? 2 * eta : 1;
+                else if(side == -1)
+                    pval[k + r * m] = eta1;
+                else
+                    pval[k + r * m] = eta2;
 
         }
 
@@ -560,7 +595,7 @@ void pvalue_dev(double* X, double* z, int G, int p, int* N, int* pairs, double* 
  * mu: a G*p*R temporary array to be used by the function pvalue_dev
 */
 __global__
-void size_tau_kernel(double* X, int G, int p, int* N, int* pairs, double* sigma,
+void size_tau_kernel(double* X, int G, int p, int* N, int* pairs, int side, double* sigma,
     double* tau, int m, int B, curandStateMRG32k3a* state,
     double* Mn, double* Ln, int method, double* size, int R, double* mu, double* Z, int Z_stride, int* Xstar)
 {
@@ -590,7 +625,7 @@ void size_tau_kernel(double* X, int G, int p, int* N, int* pairs, double* sigma,
                 {
                     z[i] = curand_normal_double(&localState);
                 }
-                pvalue_dev(X, z, G, p, N, pairs, sigma, tau, m, B, Mn, Ln, r, size, mu, nullptr);
+                pvalue_dev(X, z, G, p, N, pairs, side, sigma, tau, m, B, Mn, Ln, r, size, mu, nullptr);
         }
         else //if(method > 0) // RMGB or RMGBA or WB or WBA
         {
@@ -662,7 +697,7 @@ void size_tau_kernel(double* X, int G, int p, int* N, int* pairs, double* sigma,
                     }
                 }
                 
-                pvalue_dev(X, z, G, p, N, pairs, local_sigma, tau, m, B, local_Mn, local_Ln, 0, size+r*m, local_mu, local_Xstar);
+                pvalue_dev(X, z, G, p, N, pairs, side, local_sigma, tau, m, B, local_Mn, local_Ln, 0, size+r*m, local_mu, local_Xstar);
                 //pvalue_dev(X, z, G, p, N, pairs, sigma,       tau, m, B, Mn,       Ln,       r, size,     mu);
             }
         }
@@ -695,6 +730,7 @@ int anova_cuda_(const NumericMatrix & vX,
     const NumericMatrix & vmu,
     const NumericVector & vtau,
     Nullable<NumericMatrix> vpairs_t,
+    int side,
     int B,
     double alpha,
     int method,
@@ -877,7 +913,7 @@ int anova_cuda_(const NumericMatrix & vX,
     if(msuccess == false) goto cleanup;
     
 
-    pvalue(vX, vN, vsigma, vmu, vtau, pairs, Q, B , Mn, Ln, pval);
+    pvalue(vX, vN, vsigma, vmu, vtau, pairs, side, Q, B , Mn, Ln, pval);
     for (int k = 0; k < m; k++) vpval[k] = pval[k];
 
     //for(int k = 0; k<m; k++) printf("pvalue with tau=%f is %f\n",vtau[k],pval[k]);
@@ -944,7 +980,7 @@ int anova_cuda_(const NumericMatrix & vX,
         }
 
 
-        size_tau_kernel << <nblock, threads_per_block >> > (X, G, p, N, pairs, sigma,
+        size_tau_kernel << <nblock, threads_per_block >> > (X, G, p, N, pairs, side, sigma,
             tau, m, B, devMRGStates, Mn, Ln, method, size, R, mu, Z, Z_stride, Xstar);
 
         cudaDeviceSynchronize(); //Wait for GPU to finish executing kernel.

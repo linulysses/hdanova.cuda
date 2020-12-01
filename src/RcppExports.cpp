@@ -6,8 +6,8 @@
 using namespace Rcpp;
 
 // anova_cuda
-SEXP anova_cuda(const NumericMatrix& vX, const NumericVector& vN, const NumericMatrix& vsigma, const NumericMatrix& mu, const NumericVector& vtau, Nullable<NumericMatrix> vpair, int B, double alpha, int method, int R, int nblock, int threads_per_block, int seed);
-RcppExport SEXP _hdanova_cuda_anova_cuda(SEXP vXSEXP, SEXP vNSEXP, SEXP vsigmaSEXP, SEXP muSEXP, SEXP vtauSEXP, SEXP vpairSEXP, SEXP BSEXP, SEXP alphaSEXP, SEXP methodSEXP, SEXP RSEXP, SEXP nblockSEXP, SEXP threads_per_blockSEXP, SEXP seedSEXP) {
+SEXP anova_cuda(const NumericMatrix& vX, const NumericVector& vN, const NumericMatrix& vsigma, const NumericMatrix& mu, const NumericVector& vtau, Nullable<NumericMatrix> vpair, int side, int B, double alpha, int method, int R, int nblock, int threads_per_block, int seed);
+RcppExport SEXP _hdanova_cuda_anova_cuda(SEXP vXSEXP, SEXP vNSEXP, SEXP vsigmaSEXP, SEXP muSEXP, SEXP vtauSEXP, SEXP vpairSEXP, SEXP sideSEXP, SEXP BSEXP, SEXP alphaSEXP, SEXP methodSEXP, SEXP RSEXP, SEXP nblockSEXP, SEXP threads_per_blockSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -17,6 +17,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const NumericMatrix& >::type mu(muSEXP);
     Rcpp::traits::input_parameter< const NumericVector& >::type vtau(vtauSEXP);
     Rcpp::traits::input_parameter< Nullable<NumericMatrix> >::type vpair(vpairSEXP);
+    Rcpp::traits::input_parameter< int >::type side(sideSEXP);
     Rcpp::traits::input_parameter< int >::type B(BSEXP);
     Rcpp::traits::input_parameter< double >::type alpha(alphaSEXP);
     Rcpp::traits::input_parameter< int >::type method(methodSEXP);
@@ -24,13 +25,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type nblock(nblockSEXP);
     Rcpp::traits::input_parameter< int >::type threads_per_block(threads_per_blockSEXP);
     Rcpp::traits::input_parameter< int >::type seed(seedSEXP);
-    rcpp_result_gen = Rcpp::wrap(anova_cuda(vX, vN, vsigma, mu, vtau, vpair, B, alpha, method, R, nblock, threads_per_block, seed));
+    rcpp_result_gen = Rcpp::wrap(anova_cuda(vX, vN, vsigma, mu, vtau, vpair, side, B, alpha, method, R, nblock, threads_per_block, seed));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hdanova_cuda_anova_cuda", (DL_FUNC) &_hdanova_cuda_anova_cuda, 13},
+    {"_hdanova_cuda_anova_cuda", (DL_FUNC) &_hdanova_cuda_anova_cuda, 14},
     {NULL, NULL, 0}
 };
 

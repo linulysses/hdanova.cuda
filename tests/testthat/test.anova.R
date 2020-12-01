@@ -28,6 +28,13 @@ test_that("check routines in hdanova.R", {
     expect_true(res$reject)
     expect_true(res$pvalue < alpha)
     
+    res <- hdtest(X,alpha,side='<=',tau.method='MGBA',R=100,B=200)
+    expect_true(res$reject)
+    expect_true(res$pvalue < alpha)
+    
+    res <- hdtest(X,alpha,side='>=',tau.method='MGBA',R=100,B=200)
+    expect_true(!res$reject)
+    expect_true(res$pvalue > alpha)
     
     
     # 3-sample, size of test
@@ -52,4 +59,15 @@ test_that("check routines in hdanova.R", {
     res <- hdtest(X,alpha)
     expect_true(res$reject)
     expect_true(res$pvalue < alpha)
+    
+    res <- hdtest(X,alpha,side='>=')
+    expect_true(res$reject)
+    expect_true(res$pvalue < alpha)
+    expect_false('sci' %in% names(res))
+    
+    res <- hdtest(X,alpha,side='<=',return.sci=T)
+    expect_true(!res$reject)
+    expect_true(res$pvalue > alpha)
+    expect_true('sci' %in% names(res))
+    
 })

@@ -2,7 +2,7 @@
 #' @description Construct (1-\code{alpha}) simultaneous confidence interval (SCI)  for the mean or difference of means of high-dimensional vectors.
 #' @param X a matrix (one-sample) or a list of matrices (multiple-samples), with each row representing an observation.
 #' @param alpha significance level; default value: 0.05.
-#' @param side either of \code{'lower','upper', or 'both'}; default value: 'both'.
+#' @param side either of \code{'lower','upper'}, or \code{'both'}; default value: \code{'both'}.
 #' @param tau real number(s) in the interval \code{[0,1)} that specifies the decay parameter and is automatically selected if it is set to \code{NULL} or multiple values are provided; default value: \code{NULL}, which is equivalent to \code{tau=1/(1+exp(-0.8*seq(-6,5,by=1))).}
 #' @param B the number of bootstrap replicates; default value: \code{ceiling(50/alpha)}.
 #' @param pairs a matrix with two columns, only used when there are more than two populations, where each row specifies a pair of populations for which the SCI is constructed; default value: \code{NULL}, so that SCIs for all pairs are constructed.
@@ -25,13 +25,16 @@
 #'                  \item{\code{Mn}}{the sorted (in increasing order) bootstrapped max statistic.}
 #'                  \item{\code{Ln}}{the sorted (in increasing order) bootstrapped min statistic.}
 #'                  \item{\code{side}}{the input \code{side}.}
-#'                  \item{\code{sigma2}}{a vector of variances for each coordinate.}
+#'                  \item{\code{alpha}}{the input \code{alpha}.}
 #'              }
 #'          }
 #'          \item{\code{tau}}{a vector of candidate values of the decay parameter.}
 #'          \item{\code{sci.tau}}{a list of \code{sci} objects corresponding to the candidate values in \code{tau}.}
 #'          \item{\code{selected.tau}}{the selected value of the decay parameter from \code{tau}.}
-#'          \item{\code{Sig}}{the sample covariance matrix (if it is computed).}
+#'          \item{\code{side}}{the input \code{side}.}
+#'          \item{\code{alpha}}{the input \code{alpha}.}
+#'          \item{\code{pairs}}{a matrix of two columns, each row containing the a pair of indices of samples of which the SCI of the difference in mean is constructed.}
+#'          \item{\code{sigma2}}{a vector (for one sample) or a list (for multiple samples) of vectors containing variance for each coordinate.}
 #'          }
 #' @details Four methods to select the decay parameter \code{tau} are provided. Using the fact that a SCI is equivalent to a hypothesis test problem, all of them first identify a set of good candidates which give rise to test that respects the specified level \code{alpha}, and then select a candidate that minimizes the p-value. These methods differ in how to identify the good candidates.
 #'     \describe{
@@ -62,11 +65,9 @@ hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NU
     
     if(is.null(S)) return(NULL)
     
-    if(S$K==1) res <- hdsci1(X, alpha, side, S$tau, B, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
-    else res <- hdsciK(X, alpha, side, S$tau,B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
-    
-    res$pvalue.tau <- S$pvalue.tau
-    res$size.tau <- S$size.tau
+    #if(S$K==1) res <- hdsci1(X, alpha, side, S$tau, B, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
+    #else 
+        res <- hdsciK(X, alpha, side, S$tau, B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
     
     return(res)
 }
@@ -97,6 +98,7 @@ hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=
         sigma <- matrix( apply(X,2,sd),1,p)
         mu <-  matrix(apply(X,2,mean),1,p)
         cudaX <- X
+        pairs <- NULL
         
     }
     else if(is.list(X)) # now 2 or more samples
@@ -119,8 +121,12 @@ hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=
     }
     else stop('X must be matrix or a list')
     
+    side <- switch(side,
+                       'both'=0,
+                       'lower'=-1,
+                       'upper'=1)
     
-    S <- anova_cuda(cudaX,c(ns),sigma,mu,tau,pairs,B,alpha,method,R,nblock,tpb,seed=seed) 
+    S <- anova_cuda(cudaX,c(ns),sigma,mu,tau,pairs,side,B,alpha,method,R,nblock,tpb,seed=seed) 
     
     if(is.null(S)){
         message('Some error occurs in GPU computation. NULL will be returned')
@@ -142,155 +148,215 @@ hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=
 
 # for one sample
 # if tau.method==NULL, then no selection of tau is made
-hdsci1 <- function(X,alpha,side,tau,B,verbose,Mn,Ln,sigma2,selected.tau)
-{
-    n <- nrow(X)
-    p <- ncol(X)
-    
-    rtn <- sqrt(n)
-    
-    X.bar <- apply(X,2,mean)
-    if(is.null(sigma2)) sigma2 <- apply(X,2,var)
-    
-    sci.tau <- lapply(1:length(tau),function(v){
-        
-        # construct SCI
-        side <- tolower(side)
-        if(side == 'both')
-        {
-            a1 <- alpha/2
-            a2 <- 1 - alpha/2
-        }
-        else
-        {
-            a1 <- alpha
-            a2 <- alpha
-        }
-        
-        b1 <- max(1,round(a1*B))
-        b2 <- round(a2*B)
-        
-        sigma <- sqrt(sigma2)^tau[v]
-        
-        idx <- sigma == 0
-        
-        sci.lower <- X.bar - Mn[v,b2] * sigma / rtn
-        sci.lower[idx] <- 0
-        sci.upper <- X.bar - Ln[v,b1] * sigma / rtn
-        sci.upper[idx] <- 0
-        
-        list(sci.lower=sci.lower,
-             sci.upper=sci.upper,
-             sigma2=sigma2,
-             tau=tau[v],
-             side=side,
-             Mn=Mn[v,],
-             Ln=Ln[v,])
-    })
-    
-    v <- which(tau==selected.tau)
-    
-    # output
-    res <- list(tau=tau,
-                Sig=Sig,
-                sigma2=sigma2,
-                pairs=NULL,
-                sci.tau=sci.tau,
-                sci=sci.tau[[v]],
-                selected.tau=selected.tau)
-
-    return(res)
-}
+# hdsci1 <- function(X,alpha,side,tau,B,verbose,Mn,Ln,sigma2,selected.tau)
+# {
+#     n <- nrow(X)
+#     p <- ncol(X)
+#     
+#     rtn <- sqrt(n)
+#     
+#     X.bar <- apply(X,2,mean)
+#     if(is.null(sigma2)) sigma2 <- apply(X,2,var)
+#     
+#     sci.tau <- lapply(1:length(tau),function(v){
+#         
+#         # construct SCI
+#         side <- tolower(side)
+#         if(side == 'both')
+#         {
+#             a1 <- alpha/2
+#             a2 <- 1 - alpha/2
+#         }
+#         else
+#         {
+#             a1 <- alpha
+#             a2 <- alpha
+#         }
+#         
+#         b1 <- max(1,round(a1*B))
+#         b2 <- round(a2*B)
+#         
+#         sigma <- sqrt(sigma2)^tau[v]
+#         
+#         idx <- sigma == 0
+#         
+#         sci.lower <- X.bar - Mn[v,b2] * sigma / rtn
+#         sci.lower[idx] <- 0
+#         sci.upper <- X.bar - Ln[v,b1] * sigma / rtn
+#         sci.upper[idx] <- 0
+#         
+#         if(side == 'upper')  sci.lower[] <- -Inf
+#         if(side == 'lower')  sci.upper[] <- Inf
+#         
+#         list(sci.lower=sci.lower,
+#              sci.upper=sci.upper,
+#              sigma2=sigma2,
+#              tau=tau[v],
+#              side=side,
+#              alpha=alpha,
+#              Mn=Mn[v,],
+#              Ln=Ln[v,])
+#     })
+#     
+#     v <- which(tau==selected.tau)
+#     
+#     # output
+#     res <- list(tau=tau,
+#                 alpha=alpha,
+#                 side=side,
+#                 sigma2=sigma2,
+#                 pairs=NULL,
+#                 sci.tau=sci.tau,
+#                 sci=sci.tau[[v]],
+#                 selected.tau=selected.tau)
+# 
+#     return(res)
+# }
 
 # for more than one sample
 # if tau.method==NULL, then no selection of tau is made
 hdsciK <- function(X,alpha,side,tau,B,pairs,verbose,Mn,Ln,sigma2,selected.tau)
 {
     
-    ns <- sapply(X,function(x){nrow(x)}) # size of each sample
-    p <- ncol(X[[1]]) # dimension
-    n <- sum(ns) # total sample size
-    G <- length(X) # number of samples
+    if(is.matrix(X)) # one-sample
+    {
+        n <- nrow(X)
+        p <- ncol(X)
+        
+        rtn <- sqrt(n)
+        
+        X.bar <- apply(X,2,mean)
+        if(is.null(sigma2)) sigma2 <- apply(X,2,var)
+        
+        sci.tau <- lapply(1:length(tau),function(v){
+            
+            # construct SCI
+            side <- tolower(side)
+            if(side == 'both')
+            {
+                a1 <- alpha/2
+                a2 <- 1 - alpha/2
+            }
+            else
+            {
+                a1 <- alpha
+                a2 <- alpha
+            }
+            
+            b1 <- max(1,round(a1*B))
+            b2 <- round(a2*B)
+            
+            sigma <- sqrt(sigma2)^tau[v]
+            
+            idx <- sigma == 0
+            
+            sci.lower <- X.bar - Mn[v,b2] * sigma / rtn
+            sci.lower[idx] <- 0
+            sci.upper <- X.bar - Ln[v,b1] * sigma / rtn
+            sci.upper[idx] <- 0
+            
+            if(side == 'upper')  sci.lower[] <- -Inf
+            if(side == 'lower')  sci.upper[] <- Inf
+            
+            list(sci.lower=sci.lower,
+                 sci.upper=sci.upper,
+                 sigma2=sigma2,
+                 tau=tau[v],
+                 side=side,
+                 alpha=alpha,
+                 Mn=Mn[v,],
+                 Ln=Ln[v,])
+        })
+    }
+    else
+    {
+        ns <- sapply(X,function(x){nrow(x)}) # size of each sample
+        p <- ncol(X[[1]]) # dimension
+        n <- sum(ns) # total sample size
+        G <- length(X) # number of samples
+        
+        sci.tau <- lapply(1:length(tau),function(v){
+            # construct SCI
+            side <- tolower(side)
+            if(side == 'both')
+            {
+                a1 <- alpha/2
+                a2 <- 1 - alpha/2
+            }
+            else
+            {
+                a1 <- alpha
+                a2 <- alpha
+            }
+            
+            
+            b1 <- max(1,round(a1*B))
+            b2 <- round(a2*B)
+            
+            sci.lower <- list()
+            sci.upper <- list()
+            
+            for(q in 1:nrow(pairs))
+            {
+                j <- pairs[q,1]
+                k <- pairs[q,2]
+                
+                lamj <- sqrt(ns[k]/(ns[j]+ns[k]))
+                lamk <- sqrt(ns[j]/(ns[j]+ns[k]))
+                
+                sig2j <- sigma2[j,]
+                sig2k <- sigma2[j,]
+                
+                sigjk <- sqrt(lamj^2 * sig2j + lamk^2 * sig2k)^tau[v] 
+                
+                X.bar <- apply(X[[j]],2,mean)
+                Y.bar <- apply(X[[k]],2,mean)
+                sqrt.harm.n <- sqrt(ns[j]*ns[k]/(ns[j]+ns[k]))
+                
+                idx <- (sigjk==0)
+                
+                if(side == 'both' || side == 'lower')
+                {
+                    tmp <- (X.bar-Y.bar) - Mn[v,b2] * sigjk / sqrt.harm.n
+                    tmp[idx] <- 0
+                    sci.lower[[q]] <- tmp
+                }
+                if(side == 'both' || side == 'upper')
+                {
+                    tmp <- (X.bar-Y.bar) - Ln[v,b1] * sigjk / sqrt.harm.n
+                    tmp[idx] <- 0
+                    sci.upper[[q]] <- tmp
+                }
+                
+                if(side == 'upper')  sci.lower[[q]] <- rep(-Inf,p)
+                if(side == 'lower')  sci.upper[[q]] <- rep(Inf,p)
+            }
+            
+            if(G <= 2) 
+            {
+                sci.lower <- sci.lower[[1]]
+                sci.upper <- sci.upper[[1]]
+            }
+            
+            list(sci.lower=sci.lower,
+                 sci.upper=sci.upper,
+                 sigma2=sigma2,
+                 tau=tau[v],
+                 side=side,
+                 alpha=alpha,
+                 pairs=pairs,
+                 Mn=Mn[v,],
+                 Ln=Ln[v,])
+        })
+    }
     
-    sci.tau <- lapply(1:length(tau),function(v){
-        # construct SCI
-        side <- tolower(side)
-        if(side == 'both')
-        {
-            a1 <- alpha/2
-            a2 <- 1 - alpha/2
-        }
-        else
-        {
-            a1 <- alpha
-            a2 <- alpha
-        }
-        
-        
-        b1 <- max(1,round(a1*B))
-        b2 <- round(a2*B)
-        
-        sci.lower <- list()
-        sci.upper <- list()
-        
-        for(q in 1:nrow(pairs))
-        {
-            j <- pairs[q,1]
-            k <- pairs[q,2]
-            
-            lamj <- sqrt(ns[k]/(ns[j]+ns[k]))
-            lamk <- sqrt(ns[j]/(ns[j]+ns[k]))
-            
-            sig2j <- sigma2[j,]
-            sig2k <- sigma2[j,]
-            
-            sigjk <- sqrt(lamj^2 * sig2j + lamk^2 * sig2k)^tau[v] 
-            
-            X.bar <- apply(X[[j]],2,mean)
-            Y.bar <- apply(X[[k]],2,mean)
-            sqrt.harm.n <- sqrt(ns[j]*ns[k]/(ns[j]+ns[k]))
-            
-            idx <- (sigjk==0)
-            
-            if(side == 'both' || side == 'lower')
-            {
-                tmp <- (X.bar-Y.bar) - Mn[v,b2] * sigjk / sqrt.harm.n
-                tmp[idx] <- 0
-                sci.lower[[q]] <- tmp
-            }
-            if(side == 'both' || size == 'upper')
-            {
-                tmp <- (X.bar-Y.bar) - Ln[v,b1] * sigjk / sqrt.harm.n
-                tmp[idx] <- 0
-                sci.upper[[q]] <- tmp
-            }
-        }
-        
-        if(side == 'both' || side == 'lower')
-        {
-            if(G <= 2) sci.lower <- sci.lower[[1]]
-        }
-        
-        if(side == 'both' || side == 'upper')
-        {
-            if(G <= 2) sci.upper <- sci.upper[[1]]
-        }
-        
-        list(sci.lower=sci.lower,
-             sci.upper=sci.upper,
-             sigma2=sigma2,
-             tau=tau[v],
-             side=side,
-             pairs=pairs,
-             Mn=Mn[v,],
-             Ln=Ln[v,])
-    })
     
     v <- which(tau==selected.tau)
     
     # output
     res <- list(tau=tau,
-                Sig=Sig,
+                alpha=alpha,
+                side=side,
                 sigma2=sigma2,
                 pairs=pairs,
                 sci.tau=sci.tau,
