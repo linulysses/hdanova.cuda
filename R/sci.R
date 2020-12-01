@@ -13,7 +13,6 @@
 #' @param nblock the number of block in CUDA computation
 #' @param tpb number of threads per block; the maximum number of total number of parallel GPU threads is then \code{nblock*tpb}
 #' @param seed the seed for random number generator
-#' @param sci T/F, indicating whether to construct SCIs or not; default: FALSE.
 #' @return a list of the following objects: 
 #'      \describe{
 #'          \item{\code{sci}}{the constructed SCI, which is a list of the following objects:
@@ -58,10 +57,11 @@
 #' # construct SCIs for the mean vectors with pairs={(1,3),(2,4)}
 #' hdsci(X,alpha=0.05,pairs=matrix(1:4,2,2))$sci
 #' @export
-hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NULL,Sig=NULL,verbose=F,tau.method='MGB',
-                  nblock=32,tpb=64,seed=sample.int(2^30,1),R=ceiling(25/alpha))
+hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NULL,
+                  Sig=NULL,verbose=F,tau.method='MGB',R=ceiling(25/alpha),
+                  nblock=32,tpb=64,seed=sample.int(2^30,1))
 {
-    S <- hdanova(X, alpha, side, tau, B, pairs, Sig, verbose, tau.method, nblock, tpb, seed, R)
+    S <- hdanova(X, alpha, side, tau, B, pairs, Sig, verbose, tau.method, R, nblock, tpb, seed)
     
     if(is.null(S)) return(NULL)
     
@@ -72,8 +72,9 @@ hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NU
     return(res)
 }
 
-hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NULL,Sig=NULL,verbose=F,tau.method='MGB',
-                    nblock=32,tpb=64,seed=sample.int(2^30,1),R=ceiling(25/alpha))
+hdanova <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NULL,
+                    Sig=NULL,verbose=F,tau.method='MGB',R=ceiling(25/alpha),
+                    nblock=32,tpb=64,seed=sample.int(2^30,1))
 {
     if(is.null(tau)) tau=1/(1+exp(-0.8*seq(-6,5,by=1)))
     

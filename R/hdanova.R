@@ -47,14 +47,11 @@
 #' \insertRef{Lin2020}{hdanova}
 #' @examples
 #' # simulate a dataset of 1 sample
-#' X <- matrix(runif(30*100)-0.5,30,100)
-#' 
-#' hdtest.cuda(X)
+#' hdtest(X=matrix(runif(30*100)-0.5,30,100))
 #' @export
 hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NULL,Sig=NULL,verbose=F,tau.method='MGB',
                    R=ceiling(25/alpha),nblock=32,tpb=64,seed=sample.int(2^30,1),return.sci=F)
 {
-    
     sci.side <- switch (side,
                         '>=' = 'upper',
                         '<=' = 'lower',
@@ -63,7 +60,8 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
                         'both' = 'both'
     )
     
-    S <- hdanova(X, alpha, sci.side, tau, B, pairs, Sig, verbose, tau.method, nblock, tpb, seed, R)
+    S <- hdanova(X, alpha, sci.side, tau, B, pairs, Sig, verbose, tau.method, R, nblock, tpb, seed)
+    
     
     if(is.null(S)) return(NULL)
     
@@ -81,7 +79,7 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
     
     if(return.sci)
         res$sci <- hdsciK(X, alpha, sci.side, S$tau,B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)$sci
-    
+
     
     res$pvalue <- res$pvalue.tau[which(res$tau==res$selected.tau)]
     
@@ -119,9 +117,8 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
 #' @param B the number of bootstrap replicates; default value: \code{ceiling(50/alpha)}.
 #' @param pairs a matrix with two columns, only used when there are more than two populations, where each row specifies a pair of populations for which the SCI is constructed; default value: \code{NULL}, so that SCIs for all pairs are constructed.
 #' @param verbose TRUE/FALSE, indicator of whether to output diagnostic information or report progress; default value: FALSE.
-#' @param R the number of iterations; default value: \code{ceiling(25/alpha)}.
 #' @param method the evaluation method tau; possible values are 'MGB' (default), 'MGBA', 'RGB', 'RGBA', 'WB' and 'WBA' (see \code{\link{hdsci}} for details).
-#' @param R the number of Monte Carlo replicates for estimating the empirical size; default: \code{ceiling(25/alpha)}
+#' @param R the number of iterations; default value: \code{ceiling(25/alpha)}.
 #' @param nblock the number of block in CUDA computation
 #' @param tpb number of threads per block; the maximum number of total number of parallel GPU threads is then \code{nblock*tpb}
 #' @param seed the seed for random number generator
@@ -135,11 +132,10 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
 #' # simulate a dataset of 4 samples
 #' X <- lapply(1:4, function(g) MASS::mvrnorm(30,rep(0.3*g,10),diag((1:10)^(-0.5*g))))
 #' 
-#' # test for the equality of mean vectors with pairs={(1,3),(2,4)}
 #' size.tau(X,tau=seq(0,1,by=0.1),alpha=0.05,pairs=matrix(1:4,2,2),R=100)
 #' @export
 size.tau <- function(X,tau,side='==',alpha=0.05,B=ceiling(50/alpha),pairs=NULL,verbose=F,
-                     R=ceiling(25/alpha),method='MGB',
+                     method='MGB',R=ceiling(25/alpha),
                      nblock=32,tpb=64,seed=sample.int(2^30,1))
 {
     side <- switch (side,
@@ -149,7 +145,7 @@ size.tau <- function(X,tau,side='==',alpha=0.05,B=ceiling(50/alpha),pairs=NULL,v
                         '='  = 'both',
                         'both' = 'both'
     )
-    res <- hdanova(X, alpha, side, tau, B, pairs, Sig, verbose, method, nblock, tpb, seed, R)
+    res <- hdanova(X, alpha, side, tau, B, pairs, Sig, verbose, method, R, nblock, tpb, seed)
     return(res$size.tau)
 }
     
