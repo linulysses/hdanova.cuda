@@ -65,10 +65,9 @@ hdsci <- function(X,alpha=0.05,side='both',tau=NULL,B=ceiling(50/alpha),pairs=NU
     
     if(is.null(S)) return(NULL)
     
-    #if(S$K==1) res <- hdsci1(X, alpha, side, S$tau, B, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
-    #else 
-        res <- hdsciK(X, alpha, side, S$tau, B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
-    
+    res <- hdsciK(X, alpha, side, S$tau, B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)
+    class(res) <- 'hdaov'
+    attr(res,'vnames') <- attr(S,'vnames')
     return(res)
 }
 
@@ -141,6 +140,13 @@ hdanova <- function(X,alpha,side,tau,B,pairs,Sig,verbose,tau.method,R,nblock,tpb
     S$K <- K
     S$tau <- tau
     S$pairs <- pairs
+    
+    if(K==1) vnames <- colnames(X)
+    else vnames <- colnames(X[[1]])
+    
+    if(is.null(vnames)) vnames <- paste0('X',1:p)
+    
+    attr(S,'vnames') <- vnames
     
     return(S)
 }

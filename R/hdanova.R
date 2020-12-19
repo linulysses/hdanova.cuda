@@ -74,9 +74,7 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
                 size.tau=S$size.tau,
                 pairs=S$pairs)
     
-    #if(S$K==1) res$sci <- hdsci1(X, alpha, sci.side, S$tau, B, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)$sci
-    #else 
-    
+
     if(return.sci)
         res$sci <- hdsciK(X, alpha, sci.side, S$tau,B, S$pairs, verbose, S$Mn, S$Ln, S$sigma^2, S$selected.tau)$sci
 
@@ -103,6 +101,8 @@ hdtest <- function(X,alpha=0.05,side='==',tau=NULL,B=ceiling(50/alpha),pairs=NUL
         res$pairs <- tmp
     }
     
+    class(res) <- 'hdaov'
+    attr(res,'vnames') <- attr(S,'vnames')
     return(res)
 }
 
